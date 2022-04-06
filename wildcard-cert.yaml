@@ -1,0 +1,17 @@
+# Defines and requests a wildcard certificate for the specified DNS zone, including the zone name itself.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: default-wildcard
+  namespace: cert-manager
+spec:
+  secretName: default-wildcard-tls
+  duration: 2160h
+  renewBefore: 360h
+  commonName: $DNS_ZONE_NAME
+  dnsNames:
+  - $DNS_ZONE_NAME
+  - '*.$DNS_ZONE_NAME'
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer

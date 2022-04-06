@@ -1,0 +1,46 @@
+stages:
+    - deploy
+
+.deploy-base:
+  stage: deploy
+  script:
+    # Load in ENV variables (see example.vars)
+    - source $ENV_VARS
+    # We are using Helm 3 which does not require anything to be installed on the cluster. All we need to do is add the helm
+    # repositories we plan on using (this is a local operation):
+    - helm repo add jetstack https://charts.jetstack.io
+    - helm repo update
+
+    # Install Cert Manager helm chart. Because of our split horizon DNS configuration, we instruct cert-manager to use some
+    # well-known external DNS servers for validating DNS entries. Otherwise, SSL certs issued using DNS validation will fail
+    # because it will try to resolve the DNS names using the private (intenral) zone.
+    - kubectl create namespace cert-manager || true
+    - helm upgrade -i cert-manager jetstack/cert-manager --namespace cert-manager --atomic --version v1.1 -f cert-manager.yaml
+    # Delay to allow Cert-Manager to come online.
+    - sleep 120
+    # Create the certificate issuer which is configured to issue wildcard certs from letsencrypt using a DNS challenge.
+    - envsubst < cert-issuer.yaml | kubectl apply -f -
+    # Request an actual certificate for our top-level wildcard domain.
+    - envsubst < wildcard-cert.yaml | kubectl apply -f -
+  when: manual
+
+Deploy Dev:
+  extends: .deploy-base
+  tags:
+    - shell
+  environment:
+    name: development
+
+Deploy Staging:
+  extends: .deploy-base
+  tags:
+    - shell
+  environment:
+    name: staging
+
+Deploy Prod:
+  extends: .deploy-base
+  tags:
+    - shell
+  environment:
+    name: prod
